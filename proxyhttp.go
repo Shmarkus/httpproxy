@@ -25,13 +25,13 @@ const (
 	SERVER_PATH       = "/proxy"
 	KILL_PATH         = "/kill"
 	MATCH_FOUND_STR   = "Found the needle"
-	PROXY_ACTIVE_STR  = "Proxy active..."
-	RECEIEVED_MSG_STR = "Started request proxy >>>>>>>>>>>>>>>>"
+	PROXY_ACTIVE_STR  = "========== Activated proxy ==========="
+	RECEIEVED_MSG_STR = "<<<<<<< Started request proxy >>>>>>>>"
 	MOCK_MSG_STR      = "Returning mock value"
 	PROXY_MSG_STR     = "Returning actual value"
 	PROXY_STR         = "Proxyng request"
-	DONE_STR          = "<<<<<<<<<<<<<<<<<Finished"
-	SHUTTING_DOWN_STR = "Shutting proxy down"
+	DONE_STR          = "<<<<<<<<<<<<<< Finished >>>>>>>>>>>>>>"
+	SHUTTING_DOWN_STR = "======== Shutting proxy down ========="
 )
 
 /**
@@ -48,8 +48,8 @@ func ProxyServer(outputStream http.ResponseWriter, request *http.Request) {
  * Actual proxy method
  */
 func proxy(request *http.Request, responseChannel chan []byte) {
-	var responseBody []byte
 	log.Println(RECEIEVED_MSG_STR)
+	var responseBody []byte
 	requestBody, err := ioutil.ReadAll(request.Body)
 	handleErr(err)
 	request.Body.Close()
@@ -59,20 +59,30 @@ func proxy(request *http.Request, responseChannel chan []byte) {
 		if *mock != "" {
 			log.Println(MOCK_MSG_STR)
 			responseBody = []byte(*mock)
+		} else {
+			responseBody = getResponse(requestBody)
 		}
 	} else {
-		log.Println(PROXY_STR)
-		byteReader := bytes.NewBuffer(requestBody)
-		response, err := http.Post(*endpoint, POST_HEAD, byteReader)
-		handleErr(err)
-
-		log.Println(PROXY_MSG_STR)
-		responseBody, err = ioutil.ReadAll(response.Body)
-		handleErr(err)
-		response.Body.Close()
+		responseBody = getResponse(requestBody)
 	}
 	responseChannel <- responseBody
 	log.Println(DONE_STR)
+}
+
+/**
+ * Read the actual response from the endpoint and return it
+ */
+func getResponse(request []byte) (response []byte) {
+	log.Println(PROXY_STR)
+	byteReader := bytes.NewBuffer(request)
+	response, err := http.Post(*endpoint, POST_HEAD, byteReader)
+	handleErr(err)
+
+	log.Println(PROXY_MSG_STR)
+	response, err = ioutil.ReadAll(response.Body)
+	handleErr(err)
+	response.Body.Close()
+	return response
 }
 
 /**
