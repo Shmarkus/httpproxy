@@ -21,7 +21,8 @@ var (
 
 const (
 	POST_TYPE = "text/xml;charset=UTF-8"
-	SERVER_PATH = "/"
+	SERVER_PATH = "/proxy"
+	KILL_PATH = "/kill"
 	MATCH_FOUND_STR = "Found the needle"
 	PROXY_ACTIVE_STR = "Proxy active..."
 	RECEIEVED_MSG_STR = "Started request proxy >>>>>>>>>>>>>>>>"
@@ -85,8 +86,8 @@ func KillServer (outputStream http.ResponseWriter, request *http.Request) {
 func main() {
 	flag.Parse()
 	log.Println(PROXY_ACTIVE_STR)
-	http.HandleFunc("/proxy", ProxyServer)
-	http.HandleFunc("/die", KillServer)
+	http.HandleFunc(SERVER_PATH, ProxyServer)
+	http.HandleFunc(KILL_PATH, KillServer)
 	err := http.ListenAndServe(*fromPort, nil)
 	handleErr(err)
 }
