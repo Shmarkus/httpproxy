@@ -26,12 +26,12 @@ const (
 	KILL_PATH         = "/kill"
 	MATCH_FOUND_STR   = "Found the needle"
 	PROXY_ACTIVE_STR  = "========== Activated proxy ==========="
-	RECEIEVED_MSG_STR = "<<<<<<< Started request proxy >>>>>>>>"
+	RECEIVED_MSG_STR  = "<<<<<<< Started request proxy >>>>>>>>"
 	MOCK_MSG_STR      = "Returning mock value"
 	PROXY_MSG_STR     = "Returning actual value"
 	PROXY_STR         = "Proxyng request"
 	DONE_STR          = "<<<<<<<<<<<<<< Finished >>>>>>>>>>>>>>"
-	SHUTTING_DOWN_STR = "======== Shutting proxy down ========="
+	SHUTTING_DOWN_STR = "=========== Shutting down ============"
 )
 
 /**
@@ -48,21 +48,18 @@ func ProxyServer(outputStream http.ResponseWriter, request *http.Request) {
  * Actual proxy method
  */
 func proxy(request *http.Request, responseChannel chan []byte) {
-	log.Println(RECEIEVED_MSG_STR)
+	log.Println(RECEIVED_MSG_STR)
 	var responseBody []byte
 	requestBody, err := ioutil.ReadAll(request.Body)
 	handleErr(err)
 	request.Body.Close()
-	if hasMatch(requestBody) {
-		atomic.AddUint64(&matches, 1)
-		log.Println(MATCH_FOUND_STR, atomic.LoadUint64(&matches))
-		if *mock != "" {
-			log.Println(MOCK_MSG_STR)
-			responseBody = []byte(*mock)
-		} else {
-			responseBody = getResponse(requestBody)
-		}
+	mockResponse := getMockOnMatch(requestBody)
+	if mockResponse != "" {
+		log.Println(MOCK_MSG_STR)
+		responseBody = []byte(mockResponse)
 	} else {
+		log.Println(PROXY_STR)
+		log.Println(PROXY_MSG_STR)
 		responseBody = getResponse(requestBody)
 	}
 	responseChannel <- responseBody
@@ -72,24 +69,28 @@ func proxy(request *http.Request, responseChannel chan []byte) {
 /**
  * Read the actual response from the endpoint and return it
  */
-func getResponse(request []byte) (response []byte) {
-	log.Println(PROXY_STR)
+func getResponse(request []byte) (responseBody []byte) {
 	byteReader := bytes.NewBuffer(request)
 	response, err := http.Post(*endpoint, POST_HEAD, byteReader)
 	handleErr(err)
-
-	log.Println(PROXY_MSG_STR)
-	response, err = ioutil.ReadAll(response.Body)
+	responseBody, err = ioutil.ReadAll(response.Body)
 	handleErr(err)
 	response.Body.Close()
-	return response
+	return responseBody
 }
 
 /**
  * Function to determine whether certain needle exists in request
  */
-func hasMatch(input []byte) (match bool) {
-	return strings.Contains(string(input), *needle)
+func getMockOnMatch(input []byte) (mockResponse string) {
+	if strings.Contains(string(input), *needle) {
+		atomic.AddUint64(&matches, 1)
+		log.Println(MATCH_FOUND_STR, atomic.LoadUint64(&matches))
+		if *mock != "" {
+			mockResponse = *mock
+		}
+	}
+	return mockResponse
 }
 
 /**
