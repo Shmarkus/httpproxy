@@ -77,8 +77,9 @@ func proxy(request *http.Request, responseChannel chan []byte) {
 }
 
 /**
- * Function to determine whether certain needle exists in request
- */
+* Function to determine whether certain needle exists in request
+ * TODO: read needle and mock response from database
+*/
 func getMockOnMatch(input []byte) (mockResponse string) {
 	if strings.Contains(string(input), *needle) {
 		atomic.AddUint64(&matches, 1)
