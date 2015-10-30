@@ -28,11 +28,22 @@ const (
 	PROXY_ACTIVE_STR  = "========== Activated proxy ==========="
 	RECEIVED_MSG_STR  = "<<<<<<< Started request proxy >>>>>>>>"
 	MOCK_MSG_STR      = "Returning mock value"
-	PROXY_MSG_STR     = "Returning actual value"
-	PROXY_STR         = "Proxyng request"
+	PROXY_MSG_STR     = "Proxied request: returning actual value"
 	DONE_STR          = "<<<<<<<<<<<<<< Finished >>>>>>>>>>>>>>"
 	SHUTTING_DOWN_STR = "=========== Shutting down ============"
 )
+
+/**
+ * Parse input flags and start HTTP server on *fromPort
+ */
+func main() {
+	flag.Parse()
+	log.Println(PROXY_ACTIVE_STR)
+	http.HandleFunc(SERVER_PATH, ProxyServer)
+	http.HandleFunc(KILL_PATH, KillServer)
+	err := http.ListenAndServe(*localPort, nil)
+	handleError(err)
+}
 
 /**
  * HTTP server for proxy
@@ -51,32 +62,18 @@ func proxy(request *http.Request, responseChannel chan []byte) {
 	log.Println(RECEIVED_MSG_STR)
 	var responseBody []byte
 	requestBody, err := ioutil.ReadAll(request.Body)
-	handleErr(err)
+	handleError(err)
 	request.Body.Close()
 	mockResponse := getMockOnMatch(requestBody)
-	if mockResponse != "" {
-		log.Println(MOCK_MSG_STR)
-		responseBody = []byte(mockResponse)
-	} else {
-		log.Println(PROXY_STR)
+	if len(mockResponse) > 0 {
 		log.Println(PROXY_MSG_STR)
 		responseBody = getResponse(requestBody)
+	} else {
+		log.Println(MOCK_MSG_STR)
+		responseBody = []byte(mockResponse)
 	}
 	responseChannel <- responseBody
 	log.Println(DONE_STR)
-}
-
-/**
- * Read the actual response from the endpoint and return it
- */
-func getResponse(request []byte) (responseBody []byte) {
-	byteReader := bytes.NewBuffer(request)
-	response, err := http.Post(*endpoint, POST_HEAD, byteReader)
-	handleErr(err)
-	responseBody, err = ioutil.ReadAll(response.Body)
-	handleErr(err)
-	response.Body.Close()
-	return responseBody
 }
 
 /**
@@ -86,11 +83,33 @@ func getMockOnMatch(input []byte) (mockResponse string) {
 	if strings.Contains(string(input), *needle) {
 		atomic.AddUint64(&matches, 1)
 		log.Println(MATCH_FOUND_STR, atomic.LoadUint64(&matches))
-		if *mock != "" {
+		if len(*mock) > 0 {
 			mockResponse = *mock
 		}
 	}
 	return mockResponse
+}
+
+/**
+ * Read the actual response from the endpoint and return it
+ */
+func getResponse(request []byte) (responseBody []byte) {
+	byteReader := bytes.NewBuffer(request)
+	response, err := http.Post(*endpoint, POST_HEAD, byteReader)
+	handleError(err)
+	responseBody, err = ioutil.ReadAll(response.Body)
+	handleError(err)
+	response.Body.Close()
+	return responseBody
+}
+
+/**
+ * Error handler function to improve readability
+ */
+func handleError(err error) {
+	if err != nil {
+		panic(err)
+	}
 }
 
 /**
@@ -99,25 +118,4 @@ func getMockOnMatch(input []byte) (mockResponse string) {
 func KillServer(outputStream http.ResponseWriter, request *http.Request) {
 	log.Println(SHUTTING_DOWN_STR)
 	os.Exit(0)
-}
-
-/**
- * Parse input flags and start HTTP server on *fromPort
- */
-func main() {
-	flag.Parse()
-	log.Println(PROXY_ACTIVE_STR)
-	http.HandleFunc(SERVER_PATH, ProxyServer)
-	http.HandleFunc(KILL_PATH, KillServer)
-	err := http.ListenAndServe(*localPort, nil)
-	handleErr(err)
-}
-
-/**
- * Error handler
- */
-func handleErr(err error) {
-	if err != nil {
-		panic(err)
-	}
 }
