@@ -15,10 +15,11 @@ import (
 )
 
 var (
-	localPort             = flag.String("f", ":12345", "The proxy server's port")
+	localPort             = flag.Int("f", 12345, "The proxy server's port")
 	endpoint              = flag.String("t", "http://wsf.cdyne.com/WeatherWS/Weather.asmx", "The host that the proxy server should forward requests to")
 	maxConnections        = flag.Int("c", 25, "The maximum number of concurrent connection")
-	mock                  = flag.Int("m", 1, "Use mock response when needle is found")
+	mock                  = flag.Int("m", 0, "Use mock response when needle is found")
+	verbose               = flag.Int("v", 0, "Log response data to STDOUT when needle is found")
 	matches        uint64 = 0
 	needles        []string
 	mocks          []string
@@ -29,17 +30,21 @@ const (
 	SERVER_PATH = "/proxy"
 	KILL_PATH   = "/kill"
 
-	NEEDLE_MOCK_SQL = "SELECT needle, mock FROM proxy.mapping"
-
 	MATCH_FOUND_STR   = "Found the needle"
-	PROXY_INIT_STR    = "Proxy initializing.."
+	PROXY_INIT_STR    = "========= Proxy initializing ========="
 	NEEDLE_MOCK_STR   = "Loading needles and mocks..."
-	PROXY_ACTIVE_STR  = "=========== Proxy activate ==========="
+	PROXY_ACTIVE_STR  = "------------ Proxy active ------------"
 	RECEIVED_MSG_STR  = "<<<<<<< Started request proxy >>>>>>>>"
 	MOCK_MSG_STR      = "Returning mock value"
-	PROXY_MSG_STR     = "Proxied request: returning actual value"
+	PROXY_MSG_STR     = "Proxy request: returning actual value"
 	DONE_STR          = "<<<<<<<<<<<<<< Finished >>>>>>>>>>>>>>"
 	SHUTTING_DOWN_STR = "=========== Shutting down ============"
+	MOCKS_IN_USE_STR  = "Using mock responses when applicable"
+	PORT_STR          = "Port: "
+	MAX_CON_STR       = "Max connections: "
+	ENDPOINT_STR      = "Endpoint: "
+
+	NEEDLE_MOCK_SQL = "SELECT needle, mock FROM proxy.mapping"
 
 	DB_USER     = "http"
 	DB_PASSWORD = "proxy"
@@ -52,11 +57,17 @@ const (
 func main() {
 	flag.Parse()
 	log.Println(PROXY_INIT_STR)
+	log.Println(PORT_STR, *localPort)
+	log.Println(MAX_CON_STR, *maxConnections)
+	log.Println(ENDPOINT_STR, *endpoint)
+	if *mock == 1 {
+		log.Println(MOCKS_IN_USE_STR)
+	}
 	getNeedlesAndMocks()
 	log.Println(PROXY_ACTIVE_STR)
 	http.HandleFunc(SERVER_PATH, ProxyServer)
 	http.HandleFunc(KILL_PATH, KillServer)
-	err := http.ListenAndServe(*localPort, nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", *localPort), nil)
 	handleError(err)
 }
 
@@ -86,6 +97,9 @@ func proxy(request *http.Request, responseChannel chan []byte) {
 	} else {
 		log.Println(PROXY_MSG_STR)
 		responseBody = getResponse(requestBody)
+		if *verbose == 1 {
+			log.Println(string(responseBody))
+		}
 	}
 	responseChannel <- responseBody
 	log.Println(DONE_STR)
