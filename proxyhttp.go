@@ -26,7 +26,6 @@ var (
 )
 
 const (
-	POST_HEAD   = "text/xml;charset=UTF-8"
 	SERVER_PATH = "/proxy"
 	KILL_PATH   = "/kill"
 
@@ -89,6 +88,8 @@ func proxy(request *http.Request, responseChannel chan []byte) {
 	var responseBody []byte
 	requestBody, err := ioutil.ReadAll(request.Body)
 	handleError(err)
+	contentType := request.Header.Get("Content-type")
+	handleError(err)
 	request.Body.Close()
 	mockResponse := getMockOnMatch(requestBody)
 	if len(mockResponse) > 0 {
@@ -96,7 +97,7 @@ func proxy(request *http.Request, responseChannel chan []byte) {
 		responseBody = []byte(mockResponse)
 	} else {
 		log.Println(PROXY_MSG_STR)
-		responseBody = getResponse(requestBody)
+		responseBody = getResponse(requestBody, contentType)
 		if *verbose == 1 {
 			log.Println(string(responseBody))
 		}
@@ -124,9 +125,9 @@ func getMockOnMatch(input []byte) (mockResponse string) {
 /**
  * Read the actual response from the endpoint and return it
  */
-func getResponse(request []byte) (responseBody []byte) {
+func getResponse(request []byte, contentType string) (responseBody []byte) {
 	byteReader := bytes.NewBuffer(request)
-	response, err := http.Post(*endpoint, POST_HEAD, byteReader)
+	response, err := http.Post(*endpoint, contentType, byteReader)
 	handleError(err)
 	responseBody, err = ioutil.ReadAll(response.Body)
 	handleError(err)
